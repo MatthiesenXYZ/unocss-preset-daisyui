@@ -1,7 +1,7 @@
 import postcss, {type Rule, type ChildNode} from 'postcss'
 import autoprefixer from 'autoprefixer'
 import {parse, type CssInJs} from 'postcss-js'
-import {tokenize, type ClassToken} from 'parsel-js'
+import {tokenize, type ClassToken, type PseudoClassToken} from 'parsel-js'
 import type {Preset, DynamicRule, Preflight} from 'unocss'
 import camelCase from 'camelcase'
 import colors from 'daisyui/src/theming/index.js'
@@ -92,6 +92,27 @@ export const presetDaisy = (
 				? 'modal'
 				// Skip prefixes
 				: (tokens[2] as ClassToken).name
+		} else if (token.type === 'type') {
+			// default base to what is likely most specific class by finding the last one in the list
+			// input.tab:checked + .tab-content, :is(.tab-active, [aria-selected="true"]) + .tab-content -> .tab-content
+			for (var i = tokens.length - 1; i >= 0; i--) {
+				if (tokens[i]?.type === 'class') {
+					base = (tokens[i] as ClassToken).name;
+					break;
+				}
+			}
+
+			// html:has(.drawer-open.drawer-open) -> .drawer-open
+			if (base === '' && token.name === 'html') {
+				var subTokens = tokenize(node.selector)
+				if(subTokens.length == 2 && subTokens[1] && (subTokens[1] as PseudoClassToken).name === 'has') {
+					var hasToken = (subTokens[1] as PseudoClassToken);
+
+					if(hasToken.argument) {
+						base = (tokenize(hasToken.argument!)[0] as ClassToken).name;
+					}
+				}
+			}
 		}
 
 		rules.set(base, (rules.get(base) ?? '') + String(node) + '\n')
@@ -130,7 +151,7 @@ export const presetDaisy = (
 		},
 		themes,
 	)
-	
+
 	return {
 		name: 'unocss-preset-daisy',
 		preflights,
